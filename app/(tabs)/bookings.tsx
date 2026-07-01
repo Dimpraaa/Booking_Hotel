@@ -8,7 +8,35 @@ import { Platform } from 'react-native';
 import { api, formatCurrency } from '../../src/api/client';
 import { globalStore } from '../../src/store';
 import { mapBookingStatus, getStatusColor } from '../../src/constants/theme';
+import { Picker } from '@react-native-picker/picker';
 import EmptyState from '../../src/components/EmptyState';
+
+const formatPaymentMethod = (typeStr: string) => {
+  if (!typeStr || typeStr === 'midtrans' || typeStr === 'Midtrans') return 'Paid via Midtrans';
+  
+  let type = typeStr.toLowerCase();
+  
+  const map: Record<string, string> = {
+    'credit_card': 'Kartu Kredit',
+    'bca_va': 'BCA VA',
+    'bni_va': 'BNI VA',
+    'bri_va': 'BRI VA',
+    'permata_va': 'Permata VA',
+    'cimb_va': 'CIMB VA',
+    'other_va': 'Other VA',
+    'bank_transfer': 'Bank Transfer (VA)',
+    'echannel': 'Mandiri VA',
+    'gopay': 'GoPay',
+    'shopeepay': 'ShopeePay',
+    'qris': 'QRIS',
+    'cstore': 'Minimarket',
+    'akulaku': 'Akulaku Paylater',
+    'alfamart': 'Alfamart',
+    'indomaret': 'Indomaret'
+  };
+  
+  return map[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
 
 export default function BookingsScreen() {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -258,9 +286,13 @@ export default function BookingsScreen() {
                         if (url.includes('transaction_status=settlement') || url.includes('transaction_status=capture') || url.includes('status_code=200')) {
                           setIsProcessingPayment(true);
                           setPaymentUrl(null);
+                          
+                          const orderIdMatch = url.match(/[?&]order_id=([^&]+)/);
+                          const orderId = orderIdMatch ? orderIdMatch[1] : undefined;
+
                           if (selectedBookingId) {
                             setTimeout(() => {
-                              api.payBooking(selectedBookingId).then(() => {
+                              api.payBooking(selectedBookingId, orderId).then((res) => {
                                 setIsProcessingPayment(false);
                                 const bk = bookings.find(b => b.id === selectedBookingId);
                                 if (bk) {
@@ -273,7 +305,7 @@ export default function BookingsScreen() {
                                       checkIn: bk.check_in_date,
                                       checkOut: bk.check_out_date,
                                       totalPrice: String(bk.total_price),
-                                      paymentMethod: 'Midtrans',
+                                      paymentMethod: formatPaymentMethod(res.paymentMethod || 'Midtrans'),
                                     }
                                   });
                                 } else {
@@ -292,7 +324,7 @@ export default function BookingsScreen() {
                                       checkIn: bk.check_in_date,
                                       checkOut: bk.check_out_date,
                                       totalPrice: String(bk.total_price),
-                                      paymentMethod: 'Midtrans',
+                                      paymentMethod: 'Paid via Midtrans',
                                     }
                                   });
                                 } else {

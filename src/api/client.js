@@ -236,9 +236,9 @@ export const api = {
     }
   },
 
-  payBooking: async (id) => {
+  payBooking: async (id, orderId) => {
     try {
-      const response = await client.put(`/bookings/${id}/pay`);
+      const response = await client.put(`/bookings/${id}/pay`, { order_id: orderId });
       return response.data;
     } catch (error) {
       const message = error.response?.data?.error || error.message;

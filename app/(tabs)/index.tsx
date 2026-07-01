@@ -275,7 +275,7 @@ export default function SearchEngineScreen() {
         {loadingHotels ? (
           <LoadingState message="Loading hotels..." />
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carousel} contentContainerStyle={{ paddingHorizontal: 20 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carousel} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, paddingTop: 5 }}>
             {recommendedHotels.map((hotel) => (
               <HotelCard
                 key={hotel.id}

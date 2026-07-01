@@ -78,6 +78,7 @@ export default function DetailScreen() {
           hotelName: hotel.name,
           roomName: room.room_name,
           price: room.price,
+          availableRooms: room.available_rooms || room.stock || 1,
           checkIn,
           checkOut,
           guests,

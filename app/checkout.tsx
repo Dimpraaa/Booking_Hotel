@@ -10,6 +10,33 @@ import { globalStore } from '../src/store';
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+export const formatPaymentMethod = (typeStr: string) => {
+  if (!typeStr || typeStr === 'midtrans' || typeStr === 'Midtrans') return 'Paid via Midtrans';
+  
+  let type = typeStr.toLowerCase();
+  
+  const map: Record<string, string> = {
+    'credit_card': 'Kartu Kredit',
+    'bca_va': 'BCA VA',
+    'bni_va': 'BNI VA',
+    'bri_va': 'BRI VA',
+    'permata_va': 'Permata VA',
+    'cimb_va': 'CIMB VA',
+    'other_va': 'Other VA',
+    'bank_transfer': 'Bank Transfer (VA)',
+    'echannel': 'Mandiri VA',
+    'gopay': 'GoPay',
+    'shopeepay': 'ShopeePay',
+    'qris': 'QRIS',
+    'cstore': 'Minimarket',
+    'akulaku': 'Akulaku Paylater',
+    'alfamart': 'Alfamart',
+    'indomaret': 'Indomaret'
+  };
+  
+  return map[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
+
 interface CalendarModalProps {
   visible: boolean;
   onClose: () => void;
@@ -105,8 +132,10 @@ function CalendarModal({ visible, onClose, onSelectDate, selectedDate, minDate }
 
 export default function CheckoutScreen() {
   const {
-    roomId, hotelId, hotelName, roomName, price, checkIn, checkOut, guests, hotelImage,
+    roomId, hotelId, hotelName, roomName, price, availableRooms, checkIn, checkOut, guests, hotelImage,
   } = useLocalSearchParams();
+
+  const maxRooms = Number(Array.isArray(availableRooms) ? availableRooms[0] : availableRooms) || 1;
 
   const [name, setName] = useState(globalStore.userName || '');
   const [email, setEmail] = useState('');
@@ -279,13 +308,24 @@ export default function CheckoutScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>NUMBER OF ROOMS</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={[styles.inputLabel, { marginBottom: 0 }]}>NUMBER OF ROOMS</Text>
+              <Text style={{ fontSize: 10, color: '#e67e22', fontWeight: 'bold' }}>Tersisa {maxRooms} kamar</Text>
+            </View>
             <View style={styles.stepperRow}>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => setRoomCount(Math.max(1, roomCount - 1))}>
+              <TouchableOpacity 
+                style={[styles.stepBtn, roomCount <= 1 && { opacity: 0.5 }]} 
+                onPress={() => setRoomCount(Math.max(1, roomCount - 1))}
+                disabled={roomCount <= 1}
+              >
                 <Ionicons name="remove" size={16} color="#43a08d" />
               </TouchableOpacity>
               <Text style={styles.stepValue}>{roomCount} Room{roomCount > 1 ? 's' : ''}</Text>
-              <TouchableOpacity style={[styles.stepBtn, styles.stepBtnDark]} onPress={() => setRoomCount(roomCount + 1)}>
+              <TouchableOpacity 
+                style={[styles.stepBtn, styles.stepBtnDark, roomCount >= maxRooms && { opacity: 0.5 }]} 
+                onPress={() => setRoomCount(Math.min(maxRooms, roomCount + 1))}
+                disabled={roomCount >= maxRooms}
+              >
                 <Ionicons name="add" size={16} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -410,9 +450,13 @@ export default function CheckoutScreen() {
                         if (url.includes('transaction_status=settlement') || url.includes('transaction_status=capture') || url.includes('status_code=200')) {
                           setIsProcessingPayment(true);
                           setPaymentUrl(null);
+                          
+                          const orderIdMatch = url.match(/[?&]order_id=([^&]+)/);
+                          const orderId = (orderIdMatch ? orderIdMatch[1] : undefined) || currentBookingRes?.order_id;
+
                           if (currentBookingRes) {
                             setTimeout(() => {
-                              api.payBooking(currentBookingRes.booking_id).then(() => {
+                              api.payBooking(currentBookingRes.booking_id, orderId).then((res) => {
                                 setIsProcessingPayment(false);
                                 router.replace({
                                   pathname: '/ticket',
@@ -423,7 +467,7 @@ export default function CheckoutScreen() {
                                     checkIn: checkInDate.toISOString().split('T')[0],
                                     checkOut: checkOutDate.toISOString().split('T')[0],
                                     totalPrice: String(total),
-                                    paymentMethod: 'Midtrans',
+                                    paymentMethod: formatPaymentMethod(res.paymentMethod || 'Midtrans'),
                                   },
                                 });
                               }).catch(() => {
@@ -437,7 +481,7 @@ export default function CheckoutScreen() {
                                     checkIn: checkInDate.toISOString().split('T')[0],
                                     checkOut: checkOutDate.toISOString().split('T')[0],
                                     totalPrice: String(total),
-                                    paymentMethod: 'Midtrans',
+                                    paymentMethod: 'Paid via Midtrans',
                                   },
                                 });
                               });

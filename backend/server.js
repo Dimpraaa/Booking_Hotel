@@ -801,9 +801,10 @@ app.post("/api/bookings", (req, res) => {
         const bookingId = result.insertId;
 
         // Generate Midtrans Snap Token
+        const order_id = `BOOK-${bookingId}-${Date.now()}`;
         let parameter = {
           transaction_details: {
-            order_id: `BOOK-${bookingId}-${Date.now()}`,
+            order_id: order_id,
             gross_amount: Math.round(total_price),
           },
           credit_card: {
@@ -830,6 +831,7 @@ app.post("/api/bookings", (req, res) => {
                 booking_id: bookingId,
                 snap_token: snapToken,
                 redirect_url: redirectUrl,
+                order_id: order_id,
               });
             });
           })
@@ -864,14 +866,53 @@ app.get("/api/users/:userId/bookings", (req, res) => {
   });
 });
 
-app.put("/api/bookings/:id/pay", (req, res) => {
+app.put("/api/bookings/:id/pay", async (req, res) => {
   const { id } = req.params;
+  const { order_id } = req.body;
+  
+  let method = "Midtrans";
+  let midtransSuccess = false;
+  
+  if (order_id) {
+    try {
+      const statusResponse = await snap.transaction.status(order_id);
+      method = statusResponse.payment_type;
+      if (method === "bank_transfer" && statusResponse.va_numbers && statusResponse.va_numbers.length > 0) {
+        method = statusResponse.va_numbers[0].bank + "_va";
+      }
+      midtransSuccess = true;
+    } catch (err) {
+      console.error("Error fetching midtrans status in payBooking:", err.message);
+    }
+  }
+
+  // Fallback to query the payments table if Midtrans query failed or order_id wasn't available
+  if (!midtransSuccess) {
+    try {
+      const dbMethod = await new Promise((resolve) => {
+        db.query("SELECT method FROM payments WHERE booking_id = ? ORDER BY created_at DESC LIMIT 1", [id], (err, results) => {
+          if (!err && results.length > 0) {
+            resolve(results[0].method);
+          } else {
+            resolve("Midtrans");
+          }
+        });
+      });
+      if (dbMethod && dbMethod !== "Midtrans") {
+        method = dbMethod;
+      }
+    } catch (e) {
+      console.error("Error checking payments table:", e);
+    }
+  }
+
   const query = 'UPDATE bookings SET status = "Paid" WHERE id = ?';
   db.query(query, [id], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({
       success: true,
       message: "Payment successful, booking confirmed!",
+      paymentMethod: method
     });
   });
 });
